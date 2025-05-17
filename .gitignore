@@ -1,0 +1,15 @@
+src/__pycache__
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.log
+results
+.env
+*.DS_Store
+
+checkpoint-1719
+checkpoint-2000
+mlruns

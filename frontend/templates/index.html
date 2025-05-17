@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Topic Classification</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-square-root-alt logo-icon"></i>
+            </div>
+            <h1>Math Topic Classification</h1>
+            <p>Enter a mathematical question to classify it into one of eight topics</p>
+        </header>
+
+        <main>
+            <div class="card question-card">
+                <form id="question-form" class="question-form">
+                    <div class="form-group">
+                        <label for="question">Your Math Question:</label>
+                        <div class="textarea-container">
+                            <textarea 
+                                id="question" 
+                                name="question" 
+                                rows="4" 
+                                placeholder="Example: Find the limit of (1+1/n)^n as n approaches infinity."
+                                required
+                            ></textarea>
+                            <div class="button-group">
+                                <button type="button" id="clear-btn" class="clear-btn" title="Clear Text">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                        <button type="button" id="random-btn" class="random-btn-large" title="Get Random Question">
+                            <i class="fas fa-dice"></i> Random Question
+                        </button>
+                        <button type="submit" class="submit-btn">
+                            <i class="fas fa-robot"></i> Classify
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="results-section" id="results-section" style="display: none;">
+                <div class="card results-card">
+                    <div class="results-header">
+                        <h2>Classification Result</h2>
+                        <span class="timestamp" id="timestamp"></span>
+                    </div>
+                    
+                    <div class="prediction-container" id="prediction-container">
+                        <div class="topic-icon">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <div class="prediction-details">
+                            <h3 id="prediction-topic">Loading...</h3>
+                            <div class="confidence-display">
+                                <div class="confidence-value-large" id="confidence-value-large">0%</div>
+                                <div class="confidence-label">Confidence Score</div>
+                            </div>
+                            <div class="confidence-bar-container">
+                                <div class="confidence-bar" id="confidence-bar"></div>
+                                <span class="confidence-value" id="confidence-value">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="error-message" id="error-message" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p id="error-text"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card topics-card">
+                <h3><i class="fas fa-list-ul"></i> Available Topics</h3>
+                <div class="topics-grid">
+                    <div class="topic-item no-hover">
+                        <i class="fas fa-superscript"></i>
+                        <span>Algebra</span>
+                    </div>
+                    <div class="topic-item no-hover">
+                        <i class="fas fa-draw-polygon"></i>
+                        <span>Geometry and Trigonometry</span>
+                    </div>
+                    <div class="topic-item no-hover">
+                        <i class="fas fa-infinity"></i>
+                        <span>Calculus and Analysis</span>
+                    </div>
+                    <div class="topic-item no-hover">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Probability and Statistics</span>
+                    </div>
+                    <div class="topic-item no-hover">
+                        <i class="fas fa-hashtag"></i>
+                        <span>Number Theory</span>
+                    </div>
+                    <div class="topic-item no-hover">
+                        <i class="fas fa-project-diagram"></i>
+                        <span>Combinatorics and Discrete Math</span>
+                    </div>
+                    <div class="topic-item no-hover">
+                        <i class="fas fa-table"></i>
+                        <span>Linear Algebra</span>
+                    </div>
+                    <div class="topic-item no-hover">
+                        <i class="fas fa-bezier-curve"></i>
+                        <span>Abstract Algebra and Topology</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by <span class="highlight">Azure ML</span> and <span class="highlight">FastAPI</span></p>
+            <div class="tech-stack">
+                <i class="fab fa-python" title="Python"></i>
+                <i class="fas fa-cloud" title="Azure ML"></i>
+                <i class="fas fa-code" title="FastAPI"></i>
+            </div>
+        </footer>
+    </div>
+
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const questionForm = document.getElementById('question-form');
+            const questionInput = document.getElementById('question');
+            const randomBtn = document.getElementById('random-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const resultsSection = document.getElementById('results-section');
+            const predictionTopic = document.getElementById('prediction-topic');
+            const confidenceBar = document.getElementById('confidence-bar');
+            const confidenceValue = document.getElementById('confidence-value');
+            const confidenceValueLarge = document.getElementById('confidence-value-large');
+            const errorMessage = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            const timestamp = document.getElementById('timestamp');
+            const loadingOverlay = document.getElementById('loading-overlay');
+
+            // Form submission handler
+            questionForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const question = questionInput.value.trim();
+                if (!question) return;
+
+                showLoading();
+
+                try {
+                    const formData = new FormData();
+                    formData.append('question', question);
+
+                    const response = await fetch('/predict', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    updateResults(data);
+                } catch (error) {
+                    showError(error.message);
+                } finally {
+                    hideLoading();
+                }
+            });
+
+            // Random question button handler
+            randomBtn.addEventListener('click', async function() {
+                try {
+                    const response = await fetch('/random-question');
+                    const data = await response.json();
+                    questionInput.value = data.question;
+                } catch (error) {
+                    console.error('Error fetching random question:', error);
+                }
+            });
+
+            // Clear button handler
+            clearBtn.addEventListener('click', function() {
+                questionInput.value = '';
+            });
+
+            function updateResults(data) {
+                resultsSection.style.display = 'block';
+                
+                if (data.success) {
+                    predictionTopic.textContent = data.prediction;
+                    const confidence = data.confidence;
+                    confidenceBar.style.width = `${confidence}%`;
+                    confidenceValue.textContent = `${confidence}%`;
+                    confidenceValueLarge.textContent = `${confidence}%`;
+                    
+                    // Set the confidence bar color dynamically based on the confidence percentage
+                    setConfidenceBarColor(confidence);
+                    
+                    errorMessage.style.display = 'none';
+                    
+                    // Set appropriate icon for the topic
+                    const topicIcon = document.querySelector('.topic-icon i');
+                    const iconClass = getTopicIcon(data.prediction);
+                    topicIcon.className = iconClass;
+                } else {
+                    errorText.textContent = data.error || 'An error occurred during classification';
+                    errorMessage.style.display = 'flex';
+                }
+                
+                // Update timestamp
+                const now = new Date();
+                timestamp.textContent = `Classified at ${now.toLocaleTimeString()}`;
+                
+                // Scroll to results
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+            }
+
+            // Function to set the confidence bar color based on confidence percentage
+            function setConfidenceBarColor(confidence) {
+                // Calculate colors based on confidence percentage
+                if (confidence < 50) {
+                    // Red to yellow gradient (0-50%)
+                    const ratio = confidence / 50;
+                    const r = Math.floor(230 - (ratio * 75)); // Reduce red (from 230 to 155)
+                    const g = Math.floor(ratio * 189);       // Increase green (from 0 to 189)
+                    const b = Math.floor(ratio * 0);         // Keep blue at minimum
+                    confidenceBar.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    // Yellow to green gradient (50-100%)
+                    const ratio = (confidence - 50) / 50;
+                    const r = Math.floor(255 - (ratio * 249)); // Reduce red (from 255 to 6)
+                    const g = Math.floor(189 + (ratio * 25));  // Increase green slightly (from 189 to 214)
+                    const b = Math.floor(ratio * 160);         // Increase blue (from 0 to 160)
+                    confidenceBar.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                }
+            }
+
+            function getTopicIcon(topic) {
+                const iconMap = {
+                    'Algebra': 'fas fa-superscript',
+                    'Geometry and Trigonometry': 'fas fa-draw-polygon',
+                    'Calculus and Analysis': 'fas fa-infinity',
+                    'Probability and Statistics': 'fas fa-chart-bar',
+                    'Number Theory': 'fas fa-hashtag',
+                    'Combinatorics and Discrete Math': 'fas fa-project-diagram',
+                    'Linear Algebra': 'fas fa-table',
+                    'Abstract Algebra and Topology': 'fas fa-bezier-curve'
+                };
+                
+                return iconMap[topic] || 'fas fa-brain';
+            }
+
+            function showError(message) {
+                resultsSection.style.display = 'block';
+                errorText.textContent = message;
+                errorMessage.style.display = 'flex';
+            }
+
+            function showLoading() {
+                loadingOverlay.style.display = 'flex';
+            }
+
+            function hideLoading() {
+                loadingOverlay.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html> 
